@@ -1,4 +1,4 @@
 /**
  * Input data from different partners.
  */
-package io.hosuaby.cars.dto;
+package io.hosuaby.meteohub.dto;

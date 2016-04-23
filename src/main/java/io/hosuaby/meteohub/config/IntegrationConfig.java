@@ -1,7 +1,7 @@
-package io.hosuaby.cars.config;
+package io.hosuaby.meteohub.config;
 
-import io.hosuaby.cars.domain.NormalizedWeatherMeasures;
-import io.hosuaby.cars.dto.MeteoPlusInput;
+import io.hosuaby.meteohub.domain.NormalizedWeatherMeasures;
+import io.hosuaby.meteohub.dto.MeteoPlusInput;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -9,7 +9,7 @@ import org.springframework.data.mongodb.MongoDbFactory;
 import org.springframework.expression.common.LiteralExpression;
 import org.springframework.http.HttpMethod;
 import org.springframework.integration.annotation.ServiceActivator;
-import org.springframework.integration.channel.PublishSubscribeChannel;
+import org.springframework.integration.channel.interceptor.WireTap;
 import org.springframework.integration.config.EnableIntegration;
 import org.springframework.integration.dsl.IntegrationFlow;
 import org.springframework.integration.dsl.IntegrationFlows;
@@ -49,19 +49,37 @@ public class IntegrationConfig {
 
   @Bean
   public MessageChannel meteoPlusInboundChannel() {
-    return MessageChannels.publishSubscribe().get();
+    return MessageChannels
+        .publishSubscribe()
+        .interceptor(new WireTap(logChannel()))
+        .get();
   }
 
   @Bean
   public IntegrationFlow meteoPlusFlow() {
     return IntegrationFlows
         .from(meteoPlusInboundChannel())
-        .transform((MeteoPlusInput input) -> {
+        .<MeteoPlusInput, NormalizedWeatherMeasures>transform(input -> {
           NormalizedWeatherMeasures nwm = new NormalizedWeatherMeasures();
           nwm.setTemperature(input.getTemperature());
+          nwm.setHumidity(input.getHumidity());
+          nwm.setMesureMoment(input.getMesureDateTime());
+          nwm.setCoordinates(input.getCoordinates().toArray(new Double[2]));
+          nwm.setSource(input.getDeviceId().toString());
           return nwm;
         })
         .channel(normalizedMeasuresChannel())
+        .get();
+  }
+
+  @Bean
+  public IntegrationFlow meteoPlusRawInputPersistenceFlow() {
+    return IntegrationFlows
+        .from(meteoPlusInboundChannel())
+        .handle(new MongoDbStoringMessageHandler(mongoDbFactory), c -> {
+          c.get().getT2().setCollectionNameExpression(
+              new LiteralExpression("meteoPlusRawInput"));
+        })
         .get();
   }
 
@@ -81,38 +99,14 @@ public class IntegrationConfig {
         .get();
   }
 
-//  @Transformer(inputChannel = "requestChannel", outputChannel = "logChannel")
-//  public NormalizedWeatherMeasures normalize(Message message) {
-//    NormalizedWeatherMeasures measures = new NormalizedWeatherMeasures();
-//    measures.setTemperature(45);
-//    return measures;
-//  }
-
-
-//  @Bean
-//  @Autowired
-//  public MongoDbStoringMessageHandler mongoDbWriter(
-//        final MongoDbFactory mongoDbFactory) {
-//    MongoDbStoringMessageHandler writer =
-//        new MongoDbStoringMessageHandler(mongoDbFactory);
-////    writer.
-//    return writer;
-//  }
-
-//  @Bean
-//  public MessageChannel requestChannel() {
-//    return new DirectChannel();
-//  }
-
+  /**
+   * Direct channel to print logged messages immediately after sent to
+   * logChannel.
+   */
   @Bean
   public MessageChannel logChannel() {
-    return new PublishSubscribeChannel();
+    return MessageChannels.direct("logChannel").get();
   }
-
-//  @Bean
-//  public MessageChannel persisterChannel() {
-//    return new DirectChannel();
-//  }
 
   @Bean
   @ServiceActivator(inputChannel = "logChannel")

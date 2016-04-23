@@ -1,4 +1,4 @@
 /**
  * Main application classes.
  */
-package io.hosuaby.cars;
+package io.hosuaby.meteohub;

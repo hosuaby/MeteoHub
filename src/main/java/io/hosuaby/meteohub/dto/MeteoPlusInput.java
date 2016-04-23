@@ -1,4 +1,4 @@
-package io.hosuaby.cars.dto;
+package io.hosuaby.meteohub.dto;
 
 import java.time.ZonedDateTime;
 import java.util.List;
@@ -11,18 +11,18 @@ import java.util.UUID;
  */
 public class MeteoPlusInput {
 
-  private UUID uuid;
+  private UUID deviceId;
   private ZonedDateTime mesureDateTime;
-  private List<Double> cooridnates;
+  private List<Double> coordinates;
   private Double temperature;
   private Double humidity;
 
-  public UUID getUuid() {
-    return uuid;
+  public UUID getDeviceId() {
+    return deviceId;
   }
 
-  public void setUuid(UUID uuid) {
-    this.uuid = uuid;
+  public void setDeviceId(UUID deviceId) {
+    this.deviceId = deviceId;
   }
 
   public ZonedDateTime getMesureDateTime() {
@@ -33,12 +33,12 @@ public class MeteoPlusInput {
     this.mesureDateTime = mesureDateTime;
   }
 
-  public List<Double> getCooridnates() {
-    return cooridnates;
+  public List<Double> getCoordinates() {
+    return coordinates;
   }
 
-  public void setCooridnates(List<Double> cooridnates) {
-    this.cooridnates = cooridnates;
+  public void setCoordinates(List<Double> coordinates) {
+    this.coordinates = coordinates;
   }
 
   public Double getTemperature() {

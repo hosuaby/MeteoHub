@@ -1,4 +1,4 @@
-package io.hosuaby.cars;
+package io.hosuaby.meteohub;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
