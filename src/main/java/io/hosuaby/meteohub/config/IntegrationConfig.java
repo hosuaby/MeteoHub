@@ -1,7 +1,13 @@
 package io.hosuaby.meteohub.config;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import io.hosuaby.meteohub.domain.NormalizedWeatherMeasures;
-import io.hosuaby.meteohub.dto.MeteoPlusInput;
+import io.hosuaby.meteohub.dto.meteoplus.MeteoPlusDto;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -9,12 +15,10 @@ import org.springframework.data.mongodb.MongoDbFactory;
 import org.springframework.expression.common.LiteralExpression;
 import org.springframework.http.HttpMethod;
 import org.springframework.integration.annotation.ServiceActivator;
-import org.springframework.integration.channel.interceptor.WireTap;
 import org.springframework.integration.config.EnableIntegration;
 import org.springframework.integration.dsl.IntegrationFlow;
 import org.springframework.integration.dsl.IntegrationFlows;
 import org.springframework.integration.dsl.channel.MessageChannels;
-import org.springframework.integration.handler.LoggingHandler;
 import org.springframework.integration.http.inbound.HttpRequestHandlingMessagingGateway;
 import org.springframework.integration.http.inbound.RequestMapping;
 import org.springframework.integration.mongodb.outbound.MongoDbStoringMessageHandler;
@@ -26,10 +30,17 @@ import org.springframework.messaging.MessageHandler;
  */
 @Configuration
 @EnableIntegration
-public class IntegrationConfig {
+public class IntegrationConfig implements InitializingBean {
+
+  private static final String LOG_MESSAGE_HEADER = "LOG_MSG";
+
+  private final Log logger = LogFactory.getLog(getClass());
 
   @Autowired
   private MongoDbFactory mongoDbFactory;
+
+  @Autowired
+  private ObjectMapper objectMapper;
 
   @Bean
   public HttpRequestHandlingMessagingGateway MeteoPlusInboundGateway() {
@@ -42,32 +53,35 @@ public class IntegrationConfig {
 
     gateway.setRequestMapping(mapping);
     gateway.setRequestChannel(meteoPlusInboundChannel());
-    gateway.setRequestPayloadType(MeteoPlusInput.class);
+    gateway.setRequestPayloadType(MeteoPlusDto.class);
 
     return gateway;
   }
 
   @Bean
   public MessageChannel meteoPlusInboundChannel() {
-    return MessageChannels
-        .publishSubscribe()
-        .interceptor(new WireTap(logChannel()))
-        .get();
+    return MessageChannels.publishSubscribe().get();
   }
 
   @Bean
   public IntegrationFlow meteoPlusFlow() {
     return IntegrationFlows
         .from(meteoPlusInboundChannel())
-        .<MeteoPlusInput, NormalizedWeatherMeasures>transform(input -> {
+        .enrichHeaders(h -> h
+            .header(LOG_MESSAGE_HEADER, "Received data from MeteoPlus"))
+        .wireTap(logChannel())
+        .<MeteoPlusDto, NormalizedWeatherMeasures>transform(input -> {
           NormalizedWeatherMeasures nwm = new NormalizedWeatherMeasures();
           nwm.setTemperature(input.getTemperature());
           nwm.setHumidity(input.getHumidity());
           nwm.setMesureMoment(input.getMesureDateTime());
-          nwm.setCoordinates(input.getCoordinates().toArray(new Double[2]));
+          nwm.setCoordinates(input.getCoordinates());
           nwm.setSource(input.getDeviceId().toString());
           return nwm;
         })
+        .enrichHeaders(h -> h
+            .header(LOG_MESSAGE_HEADER, "Data from MeteoPlus was normilized"))
+        .wireTap(logChannel())
         .channel(normalizedMeasuresChannel())
         .get();
   }
@@ -110,11 +124,28 @@ public class IntegrationConfig {
 
   @Bean
   @ServiceActivator(inputChannel = "logChannel")
-  public MessageHandler logger() {
-    LoggingHandler logger = new LoggingHandler(
-        LoggingHandler.Level.INFO.name());
-    logger.setShouldLogFullMessage(true);
-    return logger;
+  public MessageHandler jsonLogger() {
+    return message -> {
+      String json = "";
+
+      try {
+        json = objectMapper.writeValueAsString(message.getPayload());
+      } catch (JsonProcessingException unexpectedException) {
+        logger.error("Can not serialize object as JSON", unexpectedException);
+      }
+
+      logger.info(message.getHeaders().get(LOG_MESSAGE_HEADER) + "\n" + json);
+    };
   }
 
+  /**
+   * Enables pretty-print of JSON.
+   *
+   * @throws Exception
+   *    can not be thrown
+   */
+  @Override
+  public void afterPropertiesSet() throws Exception {
+    objectMapper.enable(SerializationFeature.INDENT_OUTPUT);
+  }
 }

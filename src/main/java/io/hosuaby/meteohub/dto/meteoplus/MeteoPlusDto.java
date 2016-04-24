@@ -1,4 +1,4 @@
-package io.hosuaby.meteohub.dto;
+package io.hosuaby.meteohub.dto.meteoplus;
 
 import java.time.ZonedDateTime;
 import java.util.List;
@@ -9,11 +9,11 @@ import java.util.UUID;
  *
  * @author Alexei KLENIN
  */
-public class MeteoPlusInput {
+public class MeteoPlusDto {
 
   private UUID deviceId;
   private ZonedDateTime mesureDateTime;
-  private List<Double> coordinates;
+  private Double[] coordinates;
   private Double temperature;
   private Double humidity;
 
@@ -33,11 +33,11 @@ public class MeteoPlusInput {
     this.mesureDateTime = mesureDateTime;
   }
 
-  public List<Double> getCoordinates() {
+  public Double[] getCoordinates() {
     return coordinates;
   }
 
-  public void setCoordinates(List<Double> coordinates) {
+  public void setCoordinates(Double[] coordinates) {
     this.coordinates = coordinates;
   }
 
